@@ -1,83 +1,114 @@
 package com.example.lab5_starter;
 
 import android.os.Bundle;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.ListView;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements MovieDialogFragment.MovieDialogListener {
+    private ListView listView;
+    private Button addButton;
 
-    private Button addMovieButton;
-    private ListView movieListView;
+    private final ArrayList<Movie> movieArrayList = new ArrayList<>();
+    private MovieArrayAdapter movieArrayAdapter;
 
-    private ArrayList<Movie> movieArrayList;
-    private ArrayAdapter<Movie> movieArrayAdapter;
+    private FirebaseFirestore db;
+    private CollectionReference moviesRef;
+    private ListenerRegistration moviesRegistration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
 
-        // Set views
-        addMovieButton = findViewById(R.id.buttonAddMovie);
-        movieListView = findViewById(R.id.listviewMovies);
+        addButton = findViewById(R.id.buttonAddMovie);
+        listView = findViewById(R.id.listviewMovies);
 
-        // create movie array
-        movieArrayList = new ArrayList<>();
         movieArrayAdapter = new MovieArrayAdapter(this, movieArrayList);
-        movieListView.setAdapter(movieArrayAdapter);
+        listView.setAdapter(movieArrayAdapter);
 
-        addDummyData();
+        // Firestore setup
+        db = FirebaseFirestore.getInstance();
+        moviesRef = db.collection("movies");
 
-        // set listeners
-        addMovieButton.setOnClickListener(view -> {
-            MovieDialogFragment movieDialogFragment = new MovieDialogFragment();
-            movieDialogFragment.show(getSupportFragmentManager(),"Add Movie");
+        // real-time listener
+        moviesRegistration = moviesRef.addSnapshotListener((value, error) -> {
+            if (error != null) {
+                Log.e("Firestore", "Listener error", error);
+                return;
+            }
+            if (value == null) return;
+
+            movieArrayList.clear();
+            for (QueryDocumentSnapshot snapshot : value) {
+                Movie m = snapshot.toObject(Movie.class);
+                if (m.getTitle() != null) movieArrayList.add(m);
+            }
+            movieArrayAdapter.notifyDataSetChanged();
         });
 
-        movieListView.setOnItemClickListener((adapterView, view, i, l) -> {
-            Movie movie = movieArrayAdapter.getItem(i);
-            MovieDialogFragment movieDialogFragment = MovieDialogFragment.newInstance(movie);
-            movieDialogFragment.show(getSupportFragmentManager(),"Movie Details");
-        });
-    }
+        addButton.setOnClickListener(v ->
+                MovieDialogFragment.newInstance(null)
+                        .show(getSupportFragmentManager(), "Add Movie")
+        );
 
-    @Override
-    public void updateMovie(Movie movie, String title, String genre, String year) {
-        movie.setTitle(title);
-        movie.setGenre(genre);
-        movie.setYear(year);
-        movieArrayAdapter.notifyDataSetChanged();
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            Movie selected = movieArrayList.get(position);
+            MovieDialogFragment.newInstance(selected)
+                    .show(getSupportFragmentManager(), "Movie Details");
+        });
     }
 
     @Override
     public void addMovie(Movie movie) {
-        movieArrayList.add(movie);
-        movieArrayAdapter.notifyDataSetChanged();
-
+        if (movie == null || movie.getTitle() == null || movie.getTitle().isEmpty()) return;
+        moviesRef.document(movie.getTitle()).set(movie)
+                .addOnFailureListener(e -> Log.e("Firestore", "addMovie failed", e));
     }
 
-    public void addDummyData(){
-        Movie m1 = new Movie("Interstellar", "Scifi", "No idea");
-        Movie m2 = new Movie("Inception", "Action", "2012");
-        movieArrayList.add(m1);
-        movieArrayList.add(m2);
-        movieArrayAdapter.notifyDataSetChanged();
+    @Override
+    public void updateMovie(Movie original, String newTitle, String newGenre, String newYear) {
+        if (original == null) return;
+        String oldTitle = original.getTitle();
+        boolean titleChanged = oldTitle != null && !oldTitle.equals(newTitle);
+        Movie updated = new Movie(newTitle, newGenre, newYear);
+
+        if (titleChanged) {
+            moviesRef.document(newTitle).set(updated)
+                    .addOnSuccessListener(aVoid ->
+                            moviesRef.document(oldTitle).delete()
+                                    .addOnFailureListener(e -> Log.e("Firestore", "delete old failed", e)))
+                    .addOnFailureListener(e -> Log.e("Firestore", "update create new failed", e));
+        } else {
+            moviesRef.document(oldTitle).set(updated)
+                    .addOnFailureListener(e -> Log.e("Firestore", "update failed", e));
+        }
+    }
+
+    @Override
+    public void deleteMovie(Movie movie) {
+        if (movie == null || movie.getTitle() == null) return;
+
+        String title = movie.getTitle();
+
+        moviesRef.document(title)
+                .delete()
+                .addOnSuccessListener(aVoid -> Log.d("Firestore", "Deleted movie: " + title))
+                .addOnFailureListener(e -> Log.e("Firestore", "deleteMovie failed", e));
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (moviesRegistration != null) moviesRegistration.remove();
     }
 }

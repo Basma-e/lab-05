@@ -10,6 +10,9 @@ public class Movie implements Serializable {
     private String genre;
     private String year;
 
+    // *** Firestore needs a public no-arg constructor ***
+    public Movie() { }
+
     // constructor
     public Movie(String title, String genre, String year) {
         this.title = title;
@@ -17,25 +20,26 @@ public class Movie implements Serializable {
         this.year = year;
     }
 
-    // getters and setters
-    public String getGenre() {
-        return genre;
+    // getters
+    public String getTitle() {
+        return title;
     }
 
-    public void setGenre(String genre) {
-        this.genre = genre;
+    public String getGenre() {
+        return genre;
     }
 
     public String getYear() {
         return year;
     }
 
-    public void setYear(String year) {
-        this.year = year;
+    // setters
+    public void setGenre(String genre) {
+        this.genre = genre;
     }
 
-    public String getTitle() {
-        return title;
+    public void setYear(String year) {
+        this.year = year;
     }
 
     public void setTitle(String title) {

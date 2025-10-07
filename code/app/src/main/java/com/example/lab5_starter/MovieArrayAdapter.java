@@ -13,30 +13,24 @@ import androidx.annotation.Nullable;
 import java.util.ArrayList;
 
 public class MovieArrayAdapter extends ArrayAdapter<Movie> {
-    private ArrayList<Movie> movies;
-    private Context context;
+    private final ArrayList<Movie> movies;
 
-    public MovieArrayAdapter(Context context, ArrayList<Movie> movies){
+    public MovieArrayAdapter(@NonNull Context context, @NonNull ArrayList<Movie> movies) {
         super(context, 0, movies);
         this.movies = movies;
-        this.context = context;
     }
 
     @NonNull
-    public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent){
+    @Override
+    public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
         View view = convertView;
-        if (view == null){
-            view = LayoutInflater.from(context).inflate(R.layout.layout_movie, parent, false);
-        }
+        if (view == null)
+            view = LayoutInflater.from(getContext()).inflate(R.layout.layout_movie, parent, false);
 
         Movie movie = movies.get(position);
-        TextView movieName = view.findViewById(R.id.textMovieName);
-        TextView movieGenre = view.findViewById(R.id.textMovieGenre);
-        TextView movieYear = view.findViewById(R.id.textMovieYear);
-
-        movieName.setText(movie.getTitle());
-        movieGenre.setText(movie.getGenre());
-        movieYear.setText(movie.getYear());
+        ((TextView) view.findViewById(R.id.textMovieName)).setText(movie.getTitle());
+        ((TextView) view.findViewById(R.id.textMovieGenre)).setText(movie.getGenre());
+        ((TextView) view.findViewById(R.id.textMovieYear)).setText(movie.getYear());
 
         return view;
     }
